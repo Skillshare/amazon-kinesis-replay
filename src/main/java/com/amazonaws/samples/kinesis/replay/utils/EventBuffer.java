@@ -20,9 +20,11 @@ package com.amazonaws.samples.kinesis.replay.utils;
 import com.amazonaws.samples.kinesis.replay.events.JsonEvent;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.Semaphore;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class EventBuffer extends Thread {
-
+  private static final Logger LOG = LoggerFactory.getLogger(EventBuffer.class);
   private boolean hasNext = true;
 
   private EventReader reader;
@@ -75,6 +77,7 @@ public class EventBuffer extends Thread {
 
   public void fill() throws InterruptedException {
     while (eventPool.size() < bufferSize) {
+      LOG.info("eventPool size {} < bufferSize {}, sleeping...", eventPool.size(), bufferSize);
       Thread.sleep(100);
     }
   }

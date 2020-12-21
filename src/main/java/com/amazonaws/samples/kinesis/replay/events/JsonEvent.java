@@ -19,11 +19,15 @@ package com.amazonaws.samples.kinesis.replay.events;
 
 import com.amazonaws.util.json.Jackson;
 import com.fasterxml.jackson.databind.JsonNode;
+import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Comparator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class JsonEvent extends Event {
+  private static final Logger LOG = LoggerFactory.getLogger(JsonEvent.class);
   public final Instant timestamp;
   public final Instant ingestionTime;
 
@@ -43,6 +47,7 @@ public class JsonEvent extends Event {
   public static class Parser {
     private Instant ingestionStartTime = Instant.now();
     private Instant firstEventTimestamp;
+    private Instant previousEventTimestamp = Instant.now();
 
     private final float speedupFactor;
     private final String timestampAttributeName;
@@ -54,12 +59,23 @@ public class JsonEvent extends Event {
 
     public JsonEvent parse(String payload) {
       JsonNode json = Jackson.fromJsonString(payload, JsonNode.class);
+      Instant timestamp;
 
-      Instant timestamp = Instant.parse(json.get(timestampAttributeName).asText());
+      try {
+        // JR: get "properties" then nested timestampAttributeName, assume sql Timestamp format
+        String strTimestamp = json.get("properties").get(timestampAttributeName).asText();
+        Timestamp sqlTimestamp = Timestamp.valueOf(strTimestamp);
+        timestamp = sqlTimestamp.toInstant();
+      } catch (NullPointerException e) {
+        // JR: if event doesn't have timestamp, use previous event's timestamp for sorting
+        timestamp = previousEventTimestamp;
+      }
 
       if (firstEventTimestamp == null) {
         firstEventTimestamp = timestamp;
       }
+
+      previousEventTimestamp = timestamp;
 
       long deltaToFirstTimestamp = Math.round(Duration.between(firstEventTimestamp, timestamp).toMillis()/speedupFactor);
 
